@@ -54,10 +54,10 @@ pt8 =  [w, down_limit];
 pts_L4 = np.array([pt7,pt8], np.int32)
 pts_L4 = pts_L4.reshape((-1,1,2))
 
-#Substractor de fondo
+#Background subtractor
 fgbg = cv2.createBackgroundSubtractorMOG2(detectShadows = True)
 
-#Elementos estructurantes para filtros morfoogicos
+#Structuring elements for morphographic filters
 kernelOp = np.ones((3,3),np.uint8)
 kernelOp2 = np.ones((5,5),np.uint8)
 kernelCl = np.ones((11,11),np.uint8)
@@ -70,28 +70,25 @@ pid = 1
 
 while(cap.isOpened()):
 ##for image in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
-    #Lee una imagen de la fuente de video
+    #Read each frame of the video source
     ret, frame = cap.read()
 ##    frame = image.array
 
     for i in persons:
-        i.age_one() #age every person one frame
-    #########################
-    #   PRE-PROCESAMIENTO   #
-    #########################
-    
-    #Aplica substraccion de fondo
+        i.age_one()
+        
+    #apply background subtraction
     fgmask = fgbg.apply(frame)
     fgmask2 = fgbg.apply(frame)
 
-    #Binariazcion para eliminar sombras (color gris)
+    #to elimminate shadows
     try:
         ret,imBin= cv2.threshold(fgmask,200,255,cv2.THRESH_BINARY)
         ret,imBin2 = cv2.threshold(fgmask2,200,255,cv2.THRESH_BINARY)
-        #Opening (erode->dilate) para quitar ruido.
+        #Opening (erode->dilate).
         mask = cv2.morphologyEx(imBin, cv2.MORPH_OPEN, kernelOp)
         mask2 = cv2.morphologyEx(imBin2, cv2.MORPH_OPEN, kernelOp)
-        #Closing (dilate -> erode) para juntar regiones blancas.
+        #Closing (dilate -> erode)
         mask =  cv2.morphologyEx(mask , cv2.MORPH_CLOSE, kernelCl)
         mask2 = cv2.morphologyEx(mask2, cv2.MORPH_CLOSE, kernelCl)
     except:
@@ -99,20 +96,13 @@ while(cap.isOpened()):
         print ('UP:',cnt_up)
         print ('DOWN:',cnt_down)
         break
-    #################
-    #   CONTORNOS   #
-    #################
     
     # RETR_EXTERNAL returns only extreme outer flags. All child contours are left behind.
     _, contours0, hierarchy = cv2.findContours(mask2,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
     for cnt in contours0:
         area = cv2.contourArea(cnt)
         if area > areaTH:
-            #################
-            #   TRACKING    #
-            #################
-            
-            #Falta agregar condiciones para multipersonas, salidas y entradas de pantalla.
+            #Missing conditions for multipersons, outputs and screen entries.
             
             M = cv2.moments(cnt)
             cx = int(M['m10']/M['m00'])
@@ -123,9 +113,9 @@ while(cap.isOpened()):
             if cy in range(up_limit,down_limit):
                 for i in persons:
                     if abs(cx-i.getX()) <= w and abs(cy-i.getY()) <= h:
-                        # el objeto esta cerca de uno que ya se detecto antes
+                        # the object is close to one that has already been detected before
                         new = False
-                        i.updateCoords(cx,cy)   #actualiza coordenadas en el objeto and resets age
+                        i.updateCoords(cx,cy)   #update coordinates in the objects
                         if i.going_UP(line_down,line_up) == True:
                             cnt_up += 1;
                             print ("ID:",i.getId(),'crossed going up at',time.strftime("%c"))
@@ -139,38 +129,19 @@ while(cap.isOpened()):
                         elif i.getDir() == 'up' and i.getY() < up_limit:
                             i.setDone()
                     if i.timedOut():
-                        #sacar i de la lista persons
                         index = persons.index(i)
                         persons.pop(index)
-                        del i     #liberar la memoria de i
+                        del i     #free the memory of i
                 if new == True:
                     p = Person.MyPerson(pid,cx,cy, max_p_age)
                     persons.append(p)
                     pid += 1     
-            #################
-            #   DIBUJOS     #
-            #################
             cv2.circle(frame,(cx,cy), 5, (0,0,255), -1)
             img = cv2.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)            
-            #cv2.drawContours(frame, cnt, -1, (0,255,0), 3)
-            
-    #END for cnt in contours0
-            
-    #########################
-    # DIBUJAR TRAYECTORIAS  #
-    #########################
+
     for i in persons:
-##        if len(i.getTracks()) >= 2:
-##            pts = np.array(i.getTracks(), np.int32)
-##            pts = pts.reshape((-1,1,2))
-##            frame = cv2.polylines(frame,[pts],False,i.getRGB())
-##        if i.getId() == 9:
-##            print str(i.getX()), ',', str(i.getY())
         cv2.putText(frame, str(i.getId()),(i.getX(),i.getY()),font,0.3,i.getRGB(),1,cv2.LINE_AA)
         
-    #################
-    #   IMAGANES    #
-    #################
     str_up = 'UP: '+ str(cnt_up)
     str_down = 'DOWN: '+ str(cnt_down)
     frame = cv2.polylines(frame,[pts_L1],False,line_down_color,thickness=2)
@@ -182,17 +153,10 @@ while(cap.isOpened()):
     cv2.putText(frame, str_down ,(10,90),font,0.5,(255,255,255),2,cv2.LINE_AA)
     cv2.putText(frame, str_down ,(10,90),font,0.5,(255,0,0),1,cv2.LINE_AA)
 
-    cv2.imshow('Frame',frame)
-    #cv2.imshow('Mask',mask)    
+    cv2.imshow('Frame',frame)   
     
-    #preisonar ESC para salir
     k = cv2.waitKey(15) & 0xff
     if k == 27:
         break
-#END while(cap.isOpened())
-    
-#################
-#   LIMPIEZA    #
-#################
 cap.release()
 cv2.destroyAllWindows()
